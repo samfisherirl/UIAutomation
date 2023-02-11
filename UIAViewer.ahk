@@ -750,22 +750,22 @@ Esc::gosub ButCapture
 
 
 		loop_try_function=
-	(LTrim
-	loop, 10
+		(LTrim
+		loop, 10
 		{
 		try {
-   
-	)
+
+		)
 		loop_try_trailing_code= 
-	(LTrim
-			
+		(LTrim
+
 			break
 		} catch e{
 				Sleep, 100
 			}
 		}
 
-	)
+		)
 		
 		if (MacroFunction != "No function") {
 			RegexMatch(MacroMatchMode, "\d(?=:)", match)
