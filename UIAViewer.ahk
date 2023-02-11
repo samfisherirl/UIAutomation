@@ -719,7 +719,7 @@ ReverseContent(inp) {
 #If IsCapturing
 Esc::gosub ButCapture
 ~PrintScreen::
-	global DDLMacroActionValue
+		global DDLMacroActionValue
 	Gui Main: Default
 	GuiControlGet, FocusedTab,, TabsMain
 	if (FocusedTab != "Macro creator")
@@ -733,6 +733,40 @@ Esc::gosub ButCapture
 		GuiControlGet, MacroTimeout,, EditMacroTimeout
 		GuiControlGet, MacroAction,, DDLMacroAction
 		MacroContent := """ControlType=" UIA_Enum.UIA_ControlTypeId(Stored.Element.CurrentControlType) ((elName := Stored.Element.CurrentName) ? " AND Name='" SanitizeInput(elName) "'" : "") ((elAID := Stored.Element.CurrentAutomationId) ? " AND AutomationId='" SanitizeInput(elAID) "'" : "") """"
+		
+
+		; ##########################################
+		; For easy reading, using multi-line variables
+		; tends to make future code more navigatable
+		; ##########################################
+
+					
+		value_for_top_of_code_generation=
+		(LTrim
+		#Include lib\UIA_Interface.ahk
+		SetTitleMatchMode, 2
+		global UIA := UIA_Interface()
+		)
+
+
+		loop_try_function=
+	(LTrim
+	loop, 10
+		{
+		try {
+   
+	)
+		loop_try_trailing_code= 
+	(LTrim
+			
+			break
+		} catch e{
+				Sleep, 100
+			}
+		}
+
+	)
+		
 		if (MacroFunction != "No function") {
 			RegexMatch(MacroMatchMode, "\d(?=:)", match)
 			MacroContent .= ",," (match ? (match=3 ? "" : match) : "RegEx") ","
@@ -740,24 +774,77 @@ Esc::gosub ButCapture
 			MacroContent .= StrReplace(MacroTimeout, " ") = "10000" ? "" : MacroTimeout ","
 			MacroContent := MacroFunction "(" MacroContent ")"
 			MacroContent := RegexReplace(MacroContent, ",*\)$", ")")
-			if MacroElementName
-				MacroContent := MacroElementName "." MacroContent
+			if MacroElementName {
+				MacroContent := loop_try_function . MacroElementName " := " . MacroElementName . "." MacroContent . loop_try_trailing_code
+				}
 			if (MacroAction = "SetValue")
 				MacroContent .= ".Value := """ DDLMacroActionValue """"
 			else if (MacroAction != "Do nothing")
-				MacroContent .= "." MacroAction (SubStr(MacroAction, 0, 1) = ")" ? "" : "()")
+				MacroContent .= "`n" . loop_try_function . MacroElementName . "." MacroAction (SubStr(MacroAction, 0, 1) = ")" ? "" : "()  " . loop_try_trailing_code)
+				
 		}
+		
 		if (Stored.WinClass != "#32768") && !(RegexMatch(ReverseContent(PreviousContent), "m`n)WinExist\(""(.*) ahk_exe (.*) ahk_class (.*)""\)$", match) && (match1 = Stored.WinTitle) && (match2 = Stored.WinExe) && (match3 = Stored.WinClass)) {
-			MacroContent := MacroElementName " := WinExist("""Stored.WinTitle " ahk_exe " Stored.WinExe " ahk_class " Stored.WinClass """)`n"
-			 . "WinActivate, ahk_id %" MacroElementName "%`n"
-			 . "WinWaitActive, ahk_id %" MacroElementName "%`n" 
-			 . MacroElementName " := UIA.ElementFromHandle(" MacroElementName ")`n`n"
-			 . MacroContent
+			WinGet, dl, ID, Stored.WinTitle
+			if (StrLen(Stored.WinTitle) > 20) ;if title is more than 20 characters
+			{
+				try { 
+					ar := StrSplit(Stored.WinTitle, "-")
+					indx := ar.MaxIndex()
+					Stored.WinTitle := ar[indx]
+				}
+			}
+			tit := Stored.WinTitle
+			ex := Stored.WinExe
+			; ##########################################
+			; Code generation inserted in GUI Box here
+			; ###############asdf#######################
 
+
+			wingetter=
+			(LTrim
+			 %MacroElementName% := WinExist("%tit% ahk_exe %ex%")
+			 
+			) 
+			
+			MacroPrelude :=  "WinActivate, ahk_id %" . MacroElementName .  "%`n" . "WinWaitActive, ahk_id %" . MacroElementName . "%`n"  
+			 . MacroElementName " := UIA.ElementFromHandle(" MacroElementName ")`n" 
+			 ; macro content (click or SetValue()) starts here !
+			  
+			sp := "  "
+			Function=
+			(LTrim
+			
+			%wingetter%
+			
+			%MacroElementName% := UI(%MacroElementName%)
+			; the handle can be re-used for various actions
+			
+			Do_Action(%MacroElementName%)
+			
+			
+			UI(%MacroElementName%){
+			%sp%%MacroPrelude%return %MacroElementName%
+			}
+				
+			Do_Action(%MacroElementName%){
+			%sp%%MacroContent%
+			%sp%}
+			)
+				
+				MacroContent := Function
+			
+			; ############################################
+			; values in the GUI box for the code ends here
+			; ############################################
 		}
+		
+		
+		
 		GuiControl,, EditMacroContent, % PreviousContent ? PreviousContent "`n`n" MacroContent : MacroContent
 	}
 	return
+
 ~F4::
 	Clipboard=
 	SaveToClipboard=
